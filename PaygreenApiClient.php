@@ -7,14 +7,16 @@ class PaygreenApiClient
     private $CP = '';
     private $HOST = null;
 
-    public static function getInstance($UI = '', $CP = '', $HOST = null){
+    public static function getInstance($UI = '', $CP = '', $HOST = null)
+    {
         if (self::$instance === null) {
             self::$instance = new PaygreenApiClient($UI, $CP, $HOST);
         }
         return (self::$instance);
     }
 
-    public function __construct($UI, $CP, $HOST) {    
+    public function __construct($UI, $CP, $HOST)
+    {
         $this->IdsAreEmpty($UI, $CP);
         $this->setHost($HOST);
     }
@@ -29,7 +31,8 @@ class PaygreenApiClient
     * @return string json datas
     *
     */
-    public static function getOAuthServerAccess($email, $name, $phone = null, $ipAddress = null){
+    public static function getOAuthServerAccess($email, $name, $phone = null, $ipAddress = null)
+    {
         if (!isset($ipAddress)) {
             $ipAddress = $_SERVER['ADDR'];
         }
@@ -48,7 +51,8 @@ class PaygreenApiClient
     * return url of Authorization
     * @return string url of Authorization
     */
-    public static function getOAuthAutorizeEndpoint() {
+    public static function getOAuthAutorizeEndpoint()
+    {
         return self::$instance->getUrlProd().'/auth/authorize';
     }
 
@@ -107,7 +111,8 @@ class PaygreenApiClient
         return $this->requestApi('refund', $datas);
     }
 
-    public function sendFingerprintDatas($data) {
+    public function sendFingerprintDatas($data)
+    {
         $datas['content'] = $data;
         return $this->requestApi('send-ccarbone', $datas);
     }
@@ -173,8 +178,8 @@ class PaygreenApiClient
             return false;
         }
 
-        foreach($bank->data as $rib){
-            if($rib->isDefault == "1"){
+        foreach ($bank->data as $rib) {
+            if ($rib->isDefault == "1") {
                 $infosAccount['IBAN']  = $rib->iban;
             }
         }
@@ -190,7 +195,7 @@ class PaygreenApiClient
         $infosAccount['modules'] = $shop->data->modules;
         $infosAccount['solidarityType'] = $shop->data->extra->solidarityType;
 
-        if(isset($shop->data->businessIdentifier)) {
+        if (isset($shop->data->businessIdentifier)) {
             $infosAccount['siret'] = $shop->data->businessIdentifier;
         }
 
@@ -212,7 +217,7 @@ class PaygreenApiClient
     public function getRoundingInfo($datas)
     {
         $transaction = $this->requestApi('get-rounding', $datas);
-        if($this->isContainsError($transaction)){
+        if ($this->isContainsError($transaction)) {
             return $transaction->error;
         }
         return $transaction;
@@ -221,7 +226,7 @@ class PaygreenApiClient
     public function validateRounding($datas)
     {
         $validate = $this->requestApi('validate-rounding', $datas);
-        if ($this->isContainsError($validate)){
+        if ($this->isContainsError($validate)) {
             return $validate->error;
         }
         return $validate;
@@ -231,7 +236,7 @@ class PaygreenApiClient
     {
         $datas['content'] = array('paymentToken' => $datas['paymentToken']);
         $refund = $this->requestApi('refund-rounding', $datas);
-        if ($this->isContainsError($refund)){
+        if ($this->isContainsError($refund)) {
             return $refund->error;
         }
         return $refund;
@@ -419,139 +424,144 @@ class PaygreenApiClient
     /************************************************************
                 Private functions called by requestApi
     ************************************************************/
-	private function oauth_access($datas, $http)
-	{
-		return ($data = array(
-			'method'    =>  'POST',
-			'url'       =>  self::getOAuthDeclareEndpoint(),
-			'http'      =>  ''
-		));
-	}
+    private function oauth_access($datas, $http)
+    {
+        return ($data = array(
+            'method'    =>  'POST',
+            'url'       =>  self::getOAuthDeclareEndpoint(),
+            'http'      =>  ''
+        ));
+    }
 
-	private function validate_shop($datas, $http)
-	{
-		return ($data = array (
-			'method'    =>  'PATCH',
-			'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/shop',
-			'http'      =>  $http
-		));
-	}
+    private function validate_shop($datas, $http)
+    {
+        return ($data = array (
+            'method'    =>  'PATCH',
+            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/shop',
+            'http'      =>  $http
+        ));
+    }
 
-	private function refund($datas, $http)
-	{
-		if (empty($datas['pid'])) {
-			return (false);
-		}
-		return ($data = array (
-			'method'    =>  'DELETE',
-			'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/payins/transaction/'.$datas['pid'],
-			'http'      =>  $http
-		));
-	}
+    private function refund($datas, $http)
+    {
+        if (empty($datas['pid'])) {
+            return (false);
+        }
+        return ($data = array (
+            'method'    =>  'DELETE',
+            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/payins/transaction/'.$datas['pid'],
+            'http'      =>  $http
+        ));
+    }
 
-	private function are_valid_ids($datas, $http)
-	{
-		return ($data = array(
-			'method'    =>  'GET',
-			'url'       =>  $this->getUrlProd().'/'.$this->getUI(),
-			'http'      =>  $http
-		));
-	}
+    private function are_valid_ids($datas, $http)
+    {
+        return ($data = array(
+            'method'    =>  'GET',
+            'url'       =>  $this->getUrlProd().'/'.$this->getUI(),
+            'http'      =>  $http
+        ));
+    }
 
-	private function get_data($datas, $http)
-	{
-		return ($data = array (
-			'method'    =>  'GET',
-			'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/'.$datas['type'],
-			'http'      =>  $http
-		));
-	}
+    private function get_data($datas, $http)
+    {
+        return ($data = array (
+            'method'    =>  'GET',
+            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/'.$datas['type'],
+            'http'      =>  $http
+        ));
+    }
 
-	private function delivery($datas, $http)
-	{
-		return ($data = array(
-			'method'    =>  'PUT',
-			'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/payins/transaction/'.$datas['pid'],
-			'http'      =>  $http
-		));
-	}
+    private function delivery($datas, $http)
+    {
+        return ($data = array(
+            'method'    =>  'PUT',
+            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/payins/transaction/'.$datas['pid'],
+            'http'      =>  $http
+        ));
+    }
 
-	private function create_cash($datas, $http)
-	{
-		return ($data = array(
-			'method'    =>  'POST',
-			'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/payins/transaction/cash',
-			'http'      =>  $http
-		));
-	}
+    private function create_cash($datas, $http)
+    {
+        return ($data = array(
+            'method'    =>  'POST',
+            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/payins/transaction/cash',
+            'http'      =>  $http
+        ));
+    }
 
-	private function create_subscription($datas, $http)
-	{
-		return ($data = array(
-			'method'    =>  'POST',
-			'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/payins/transaction/subscription',
-			'http'      =>  $http
-		));
-	}
+    private function create_subscription($datas, $http)
+    {
+        return ($data = array(
+            'method'    =>  'POST',
+            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/payins/transaction/subscription',
+            'http'      =>  $http
+        ));
+    }
 
-	private function create_tokenize($datas, $http)
-	{
-		return ($data = array(
-			'method'    =>  'POST',
-			'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/payins/transaction/tokenize',
-			'http'      =>  $http
-		));
-	}
+    private function create_tokenize($datas, $http)
+    {
+        return ($data = array(
+            'method'    =>  'POST',
+            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/payins/transaction/tokenize',
+            'http'      =>  $http
+        ));
+    }
 
-	private function create_xtime($datas, $http)
-	{
-		return ($data = array(
-			'method'    =>  'POST',
-			'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/payins/transaction/xTime',
-			'http'      =>  $http
-		));
-	}
+    private function create_xtime($datas, $http)
+    {
+        return ($data = array(
+            'method'    =>  'POST',
+            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/payins/transaction/xTime',
+            'http'      =>  $http
+        ));
+    }
 
-	private function get_datas($datas, $http) {
-		if (empty($datas['pid'])) {
-			return false;
-		}
-		return ($data = array(
-			'method'    =>  'GET',
-			'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/payins/transaction/'.$datas['pid'],
-			'http'      =>  $http
-		));
-	}
+    private function get_datas($datas, $http)
+    {
+        if (empty($datas['pid'])) {
+            return false;
+        }
+        return ($data = array(
+            'method'    =>  'GET',
+            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/payins/transaction/'.$datas['pid'],
+            'http'      =>  $http
+        ));
+    }
 
-	private function get_rounding($datas, $http) {
-		return ($data = array(
-			'method'    =>  'GET',
-			'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/solidarity/'.$datas['paymentToken'],
-			'http'      =>  $http
-		));
-	}
+    private function get_rounding($datas, $http)
+    {
+        return ($data = array(
+            'method'    =>  'GET',
+            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/solidarity/'.$datas['paymentToken'],
+            'http'      =>  $http
+        ));
+    }
 
-	private function validate_rounding($datas, $http) {
-		return ($data = array(
-			'method'    =>  'PATCH',
-			'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/solidarity/'.$datas['paymentToken'],
-			'http'      =>  $http
-		));
-}
+    private function validate_rounding($datas, $http)
+    {
+        return ($data = array(
+            'method'    =>  'PATCH',
+            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/solidarity/'.$datas['paymentToken'],
+            'http'      =>  $http
+        ));
+    }
 
-	private function refund_rounding($datas, $http) {
-		return ($data = array(
-			'method'    =>  'DELETE',
-			'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/solidarity/'.$datas['paymentToken'],
-			'http'      =>  $http
-		));
-	}
+    private function refund_rounding($datas, $http)
+    {
+        return ($data = array(
+            'method'    =>  'DELETE',
+            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/solidarity/'.$datas['paymentToken'],
+            'http'      =>  $http
+        ));
+    }
 
-	private function send_ccarbone($datas, $http) {
-		return ($data = array(
-			'method' => 'POST',
-			'url' => $this->getUrlProd().'/'.$this->getUI().'/payins/ccarbone',
-			'http' => $http
-		));
-	}
+    private function send_ccarbone($datas, $http)
+    {
+        return ($data = array(
+            'method' => 'POST',
+            'url' => $this->getUrlProd().'/'.$this->getUI().'/payins/ccarbone',
+            'http' => $http
+        ));
+    }
 }
