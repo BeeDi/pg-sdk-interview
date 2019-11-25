@@ -2,26 +2,14 @@
 
 namespace Paygreen\SDK;
 
+use Paygreen\SDK\ApiConfiguration;
+
 class ApiClient
 {
-    private static $instance = null;
+    public $configuration;
 
-    private $UI = '';
-    private $CP = '';
-    private $HOST = null;
-
-    public static function getInstance($UI = '', $CP = '', $HOST = null)
+    public function __construct()
     {
-        if (self::$instance === null) {
-            self::$instance = new ApiClient($UI, $CP, $HOST);
-        }
-        return (self::$instance);
-    }
-
-    public function __construct($UI, $CP, $HOST)
-    {
-        $this->IdsAreEmpty($UI, $CP);
-        $this->setHost($HOST);
     }
 
     /**
@@ -34,7 +22,7 @@ class ApiClient
     * @return string json datas
     *
     */
-    public static function getOAuthServerAccess($email, $name, $phone = null, $ipAddress = null)
+    public function getOAuthServerAccess($email, $name, $phone = null, $ipAddress = null)
     {
         if (!isset($ipAddress)) {
             $ipAddress = $_SERVER['ADDR'];
@@ -46,7 +34,7 @@ class ApiClient
         );
         $datas['content'] = $subParam ;
 
-        return self::$instance->requestApi('oAuth-access', $datas);
+        return $this->requestApi('oAuth-access', $datas);
     }
 
     /**
@@ -54,9 +42,9 @@ class ApiClient
     * return url of Authorization
     * @return string url of Authorization
     */
-    public static function getOAuthAutorizeEndpoint()
+    public function getOAuthAutorizeEndpoint()
     {
-        return self::$instance->getUrlProd().'/auth/authorize';
+        return $this->configuration->getApiServerUrl().'/auth/authorize';
     }
 
     /**
@@ -64,9 +52,9 @@ class ApiClient
     * return url of auth token
     * @return string url of Authentication
     */
-    public static function getOAuthTokenEndpoint()
+    public function getOAuthTokenEndpoint()
     {
-        return self::$instance->getUrlProd().'/auth/access_token';
+        return $this->configuration->getApiServerUrl().'/auth/access_token';
     }
 
     /**
@@ -74,9 +62,9 @@ class ApiClient
     * 2
     * @return string url of Authentication
     */
-    private static function getOAuthDeclareEndpoint()
+    private function getOAuthDeclareEndpoint()
     {
-        return self::$instance->getUrlProd().'/auth';
+        return $this->configuration->getApiServerUrl().'/auth';
     }
 
     public function getTransactionInfo($pid)
@@ -270,31 +258,7 @@ class ApiClient
         return $this->requestApi('create-tokenize', $data);
     }
 
-    /************************************************************
-                        Private functions
-    ************************************************************/
 
-    /**
-    * Check if the unique if contains prefix preprod : PP
-    * @return string $UI Unique Id
-    */
-    private function getUI()
-    {
-        $UI = $this->UI;
-        if (substr($this->UI, 0, 2) == 'PP') {
-            $UI = substr($this->UI, 2);
-        }
-        return $UI;
-    }
-
-    /**
-    * Return url of preprod or prod
-    * @return string url
-    */
-    private function getUrlProd()
-    {
-        return $this->HOST;
-    }
 
     /**
     * Check if error is defined in object
@@ -310,48 +274,6 @@ class ApiClient
     }
 
     /**
-    * Check if UI and CP are empty and set them
-    * @param string $UI
-    * @param string $CP
-    */
-    private function IdsAreEmpty($UI, $CP)
-    {
-        if (empty($this->CP)) {
-            $this->CP = $CP;
-        }
-        if (empty($this->UI)) {
-            $this->UI = $UI;
-        }
-    }
-
-    /**
-     * Check if UI and CP are empty and return bool
-     * @return boolean
-     */
-    public function isConfigured()
-    {
-        if (empty($this->CP)) {
-            return false;
-        }
-        if (empty($this->UI)) {
-            return false;
-        }
-        return true;
-    }
-
-    /**
-    * Set $host if empty
-    * @param string $host
-    */
-    private function setHost($host = null)
-    {
-        if (empty($host)) {
-            $host = 'https://paygreen.fr';
-        }
-        $this->HOST = $host.'/api';
-    }
-
-    /**
     * Return method and url by function name
     *
     * @param string $function
@@ -360,7 +282,7 @@ class ApiClient
     */
     private function requestApi($function, $datas = null)
     {
-        $http           = "Authorization: Bearer ".$this->CP;
+        $http           = "Authorization: Bearer ".$this->configuration->getPrivateKey();
 
         $lowerName      = strtolower($function);
         $function_name  = str_replace('-', '_', $lowerName);
@@ -438,9 +360,9 @@ class ApiClient
 
     private function validate_shop($datas, $http)
     {
-        return ($data = array (
+        return ($data = array(
             'method'    =>  'PATCH',
-            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/shop',
+            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/shop',
             'http'      =>  $http
         ));
     }
@@ -450,9 +372,9 @@ class ApiClient
         if (empty($datas['pid'])) {
             return (false);
         }
-        return ($data = array (
+        return ($data = array(
             'method'    =>  'DELETE',
-            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/payins/transaction/'.$datas['pid'],
+            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/payins/transaction/'.$datas['pid'],
             'http'      =>  $http
         ));
     }
@@ -461,16 +383,16 @@ class ApiClient
     {
         return ($data = array(
             'method'    =>  'GET',
-            'url'       =>  $this->getUrlProd().'/'.$this->getUI(),
+            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier(),
             'http'      =>  $http
         ));
     }
 
     private function get_data($datas, $http)
     {
-        return ($data = array (
+        return ($data = array(
             'method'    =>  'GET',
-            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/'.$datas['type'],
+            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/'.$datas['type'],
             'http'      =>  $http
         ));
     }
@@ -479,7 +401,7 @@ class ApiClient
     {
         return ($data = array(
             'method'    =>  'PUT',
-            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/payins/transaction/'.$datas['pid'],
+            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/payins/transaction/'.$datas['pid'],
             'http'      =>  $http
         ));
     }
@@ -488,7 +410,7 @@ class ApiClient
     {
         return ($data = array(
             'method'    =>  'POST',
-            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/payins/transaction/cash',
+            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/payins/transaction/cash',
             'http'      =>  $http
         ));
     }
@@ -497,7 +419,7 @@ class ApiClient
     {
         return ($data = array(
             'method'    =>  'POST',
-            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/payins/transaction/subscription',
+            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/payins/transaction/subscription',
             'http'      =>  $http
         ));
     }
@@ -506,7 +428,7 @@ class ApiClient
     {
         return ($data = array(
             'method'    =>  'POST',
-            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/payins/transaction/tokenize',
+            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/payins/transaction/tokenize',
             'http'      =>  $http
         ));
     }
@@ -515,7 +437,7 @@ class ApiClient
     {
         return ($data = array(
             'method'    =>  'POST',
-            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/payins/transaction/xTime',
+            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/payins/transaction/xTime',
             'http'      =>  $http
         ));
     }
@@ -527,7 +449,7 @@ class ApiClient
         }
         return ($data = array(
             'method'    =>  'GET',
-            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/payins/transaction/'.$datas['pid'],
+            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/payins/transaction/'.$datas['pid'],
             'http'      =>  $http
         ));
     }
@@ -536,7 +458,7 @@ class ApiClient
     {
         return ($data = array(
             'method'    =>  'GET',
-            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/solidarity/'.$datas['paymentToken'],
+            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/solidarity/'.$datas['paymentToken'],
             'http'      =>  $http
         ));
     }
@@ -545,7 +467,7 @@ class ApiClient
     {
         return ($data = array(
             'method'    =>  'PATCH',
-            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/solidarity/'.$datas['paymentToken'],
+            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/solidarity/'.$datas['paymentToken'],
             'http'      =>  $http
         ));
     }
@@ -554,7 +476,7 @@ class ApiClient
     {
         return ($data = array(
             'method'    =>  'DELETE',
-            'url'       =>  $this->getUrlProd().'/'.$this->getUI().'/solidarity/'.$datas['paymentToken'],
+            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/solidarity/'.$datas['paymentToken'],
             'http'      =>  $http
         ));
     }
@@ -563,9 +485,8 @@ class ApiClient
     {
         return ($data = array(
             'method' => 'POST',
-            'url' => $this->getUrlProd().'/'.$this->getUI().'/payins/ccarbone',
+            'url' => $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/payins/ccarbone',
             'http' => $http
         ));
     }
 }
-
