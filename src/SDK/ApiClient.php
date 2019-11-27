@@ -3,27 +3,24 @@
 namespace Paygreen\SDK;
 
 use Exception;
-use InvalidArgumentException;
-use LogicException;
+use Paygreen\SDK\Http\ApiRequestFactory;
 use Paygreen\SDK\Http\HttpApiRequest;
 use Paygreen\SDK\Http\HttpClientCurl;
 use Paygreen\SDK\Http\HttpClientStream;
-use Paygreen\SDK\Http\HttpVerb;
-use Paygreen\SDK\ApiConfiguration;
 
 class ApiClient
 {
-    private $configuration;
-    private $httpClient;
+    private $_httpClient;
+    private $_requestFactory;
 
     public function __construct($httpClient = null)
     {
         if (isset($httpClient)) {
-            $this->httpClient = $httpClient;
+            $this->_httpClient = $httpClient;
         } elseif (extension_loaded('curl')) {
-            $this->httpClient = new HttpClientCurl();
+            $this->_httpClient = new HttpClientCurl();
         } elseif (ini_get('allow_url_fopen')) {
-            $this->httpClient = new HttpClientStream();
+            $this->_httpClient = new HttpClientStream();
         } else {
             throw new Exception("Invalid configuration. Either add curl PHP extension or enable allow_url_fopen in php.ini");
         }
@@ -31,90 +28,13 @@ class ApiClient
 
     public function addConfiguration(ApiConfiguration $configuration): void
     {
-        $this->configuration = $configuration;
+        $this->_requestFactory = new ApiRequestFactory($configuration);
     }
 
-    public function getConfiguration(): ApiConfiguration
+    private function requestFactory(): ApiRequestFactory
     {
-        if (!isset($this->configuration)) {
-            throw new LogicException("Missing " .__CLASS__." configuration");
-        }
-
-        return $this->configuration;
+        return $this->_requestFactory;
     }
-
-    private static $methodDictionary = array(
-        'create-cash' => array(HttpVerb::POST, '/payins/transaction/cash'),
-        'get-data' => array(HttpVerb::GET, '/%s')
-    );
-
-    /**
-     * @param string $endpointKey
-     * @return HttpVerb
-     */
-    private function getEndpointVerb(string $endpointKey): string
-    {
-        if (!isset(ApiClient::$methodDictionary[$endpointKey])) {
-            throw new InvalidArgumentException("Unknown HttpRequest key: " . $endpointKey);
-        }
-
-        return ApiClient::$methodDictionary[$endpointKey][0];
-    }
-
-    /**
-     * @param string $endpointKey
-     * @return string
-     */
-    private function getEndpointFormat(string $endpointKey): string
-    {
-        if (!isset(ApiClient::$methodDictionary[$endpointKey])) {
-            throw new InvalidArgumentException("Unknown HttpRequest key: " . $endpointKey);
-        }
-
-        return ApiClient::$methodDictionary[$endpointKey][1];
-    }
-
-    /**
-     * @param string $endpointKey
-     * @param string $endpointValue
-     * @param array|null $content
-     * @return HttpApiRequest
-     */
-    private function buildApiRequest(string $endpointKey, string $endpointValue = '', array $content = null): HttpApiRequest
-    {
-        if (!isset(ApiClient::$methodDictionary[$endpointKey])) {
-            throw new InvalidArgumentException("Unknown HttpRequest key");
-        }
-
-        $req = new HttpApiRequest(
-            $this->getConfiguration()->getPrivateKey(),
-            $this->getEndpointVerb($endpointKey),
-            $this->buildUrl($this->getConfiguration(), $this->getEndpointFormat($endpointKey), $endpointValue)
-        );
-
-        if (isset($content)) {
-            $req->addContent($content);
-        }
-
-        return $req;
-    }
-
-    /**
-     * @param \Paygreen\SDK\ApiConfiguration $configuration
-     * @param string $endpoint
-     * @param string $value (optional)
-     * @return string
-     */
-    private function buildUrl(ApiConfiguration $configuration, string $endpoint, string $value = ''): string
-    {
-        $baseUrl = $configuration->getApiServerUrl() . '/' . $configuration->getUniqueIdentifier();
-        if (isset($value)) {
-            return $baseUrl . sprintf($endpoint, $value);
-        } else {
-            return $baseUrl . $endpoint;
-        }
-    }
-
 
     /**
      * Return method and url by function name
@@ -124,7 +44,7 @@ class ApiClient
      */
     private function requestApi($request)
     {
-        $page = $this->httpClient->callRequest($request);
+        $page = $this->_httpClient->callRequest($request);
 
         if ($page === false) {
             return ((object)array('error' => 1));
@@ -133,14 +53,13 @@ class ApiClient
         return json_decode($page);
     }
 
-
     /**
      * Get Status of the shop
      * @return string json datas
      */
     public function getStatusShop()
     {
-        $request = $this->buildApiRequest('get-data', 'shop');
+        $request = $this->requestFactory()->create(ApiEndpoint::GET_OBJECT, 'shop');
         return $this->requestApi($request);
     }
 
@@ -167,14 +86,16 @@ class ApiClient
         if (!isset($ipAddress)) {
             $ipAddress = $_SERVER['ADDR'];
         }
-        $subParam = array(
+        $content = array(
             "ipAddress" => $ipAddress,
             "email" => $email,
             "name" => $name
         );
-        $datas['content'] = $subParam ;
 
-        return $this->requestApi('oAuth-access', $datas);
+        $req = $this->requestFactory()->create(ApiEndpoint::OAUTH_ACCESS);
+        $req->addContent($content);
+
+        return $this->requestApi($req);
     }
 
     /**
@@ -184,7 +105,7 @@ class ApiClient
     */
     public function getOAuthAuthorizeEndpoint()
     {
-        return $this->getConfiguration()->getApiServerUrl().'/auth/authorize';
+        return ApiEndpoint::getEndpointFormat(ApiEndpoint::OAUTH_AUTHORIZE);
     }
 
     /**
@@ -194,25 +115,13 @@ class ApiClient
     */
     public function getOAuthTokenEndpoint()
     {
-        return $this->getConfiguration()->getApiServerUrl().'/auth/access_token';
-    }
-
-    /**
-    * return url of Authentication
-    * 2
-    * @return string url of Authentication
-    */
-    private function getOAuthDeclareEndpoint()
-    {
-        return $this->getConfiguration()->getApiServerUrl().'/auth';
+        return ApiEndpoint::getEndpointFormat(ApiEndpoint::OAUTH_TOKEN);
     }
 
     public function getTransactionInfo($pid)
     {
         return $this->requestApi('get-datas', array('pid' => $pid));
     }
-
-
 
     /**
     * Refund an order
@@ -404,153 +313,4 @@ class ApiClient
         return false;
     }
 
-
-
-    /************************************************************
-     * Private functions called by requestApi
-     ***********************************************************
-     * @param $datas
-     * @param $http
-     * @return array
-     */
-    private function oauth_access($datas, $http)
-    {
-        return ($data = array(
-            'method'    =>  'POST',
-            'url'       =>  self::getOAuthDeclareEndpoint(),
-            'http'      =>  ''
-        ));
-    }
-
-    private function validate_shop($datas, $http)
-    {
-        return ($data = array(
-            'method'    =>  'PATCH',
-            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/shop',
-            'http'      =>  $http
-        ));
-    }
-
-    private function refund($datas, $http)
-    {
-        if (empty($datas['pid'])) {
-            return (false);
-        }
-        return ($data = array(
-            'method'    =>  'DELETE',
-            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/payins/transaction/'.$datas['pid'],
-            'http'      =>  $http
-        ));
-    }
-
-    private function are_valid_ids($datas, $http)
-    {
-        return ($data = array(
-            'method'    =>  'GET',
-            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier(),
-            'http'      =>  $http
-        ));
-    }
-
-    private function get_data($datas, $http)
-    {
-        return ($data = array(
-            'method'    =>  'GET',
-            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/'.$datas['type'],
-            'http'      =>  $http
-        ));
-    }
-
-    private function delivery($datas, $http)
-    {
-        return ($data = array(
-            'method'    =>  'PUT',
-            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/payins/transaction/'.$datas['pid'],
-            'http'      =>  $http
-        ));
-    }
-
-    private function create_cash($datas, $http)
-    {
-        return ($data = array(
-            'method'    =>  'POST',
-            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/payins/transaction/cash',
-            'http'      =>  $http
-        ));
-    }
-
-    private function create_subscription($datas, $http)
-    {
-        return ($data = array(
-            'method'    =>  'POST',
-            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/payins/transaction/subscription',
-            'http'      =>  $http
-        ));
-    }
-
-    private function create_tokenize($datas, $http)
-    {
-        return ($data = array(
-            'method'    =>  'POST',
-            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/payins/transaction/tokenize',
-            'http'      =>  $http
-        ));
-    }
-
-    private function create_xtime($datas, $http)
-    {
-        return ($data = array(
-            'method'    =>  'POST',
-            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/payins/transaction/xTime',
-            'http'      =>  $http
-        ));
-    }
-
-    private function get_datas($datas, $http)
-    {
-        if (empty($datas['pid'])) {
-            return false;
-        }
-        return ($data = array(
-            'method'    =>  'GET',
-            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/payins/transaction/'.$datas['pid'],
-            'http'      =>  $http
-        ));
-    }
-
-    private function get_rounding($datas, $http)
-    {
-        return ($data = array(
-            'method'    =>  'GET',
-            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/solidarity/'.$datas['paymentToken'],
-            'http'      =>  $http
-        ));
-    }
-
-    private function validate_rounding($datas, $http)
-    {
-        return ($data = array(
-            'method'    =>  'PATCH',
-            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/solidarity/'.$datas['paymentToken'],
-            'http'      =>  $http
-        ));
-    }
-
-    private function refund_rounding($datas, $http)
-    {
-        return ($data = array(
-            'method'    =>  'DELETE',
-            'url'       =>  $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/solidarity/'.$datas['paymentToken'],
-            'http'      =>  $http
-        ));
-    }
-
-    private function send_ccarbone($datas, $http)
-    {
-        return ($data = array(
-            'method' => 'POST',
-            'url' => $this->configuration->getApiServerUrl().'/'.$this->configuration->getUniqueIdentifier().'/payins/ccarbone',
-            'http' => $http
-        ));
-    }
 }
