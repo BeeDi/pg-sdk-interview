@@ -4,6 +4,7 @@ namespace Paygreen\SDK;
 
 use Exception;
 use InvalidArgumentException;
+use LogicException;
 use Paygreen\SDK\Http\HttpApiRequest;
 use Paygreen\SDK\Http\HttpClientCurl;
 use Paygreen\SDK\Http\HttpClientStream;
@@ -15,9 +16,11 @@ class ApiClient
     private $configuration;
     private $httpClient;
 
-    public function __construct()
+    public function __construct($httpClient = null)
     {
-        if (extension_loaded('curl')) {
+        if (isset($httpClient)) {
+            $this->httpClient = $httpClient;
+        } elseif (extension_loaded('curl')) {
             $this->httpClient = new HttpClientCurl();
         } elseif (ini_get('allow_url_fopen')) {
             $this->httpClient = new HttpClientStream();
@@ -33,6 +36,10 @@ class ApiClient
 
     public function getConfiguration(): ApiConfiguration
     {
+        if (!isset($this->configuration)) {
+            throw new LogicException("Missing " .__CLASS__." configuration");
+        }
+
         return $this->configuration;
     }
 
@@ -127,6 +134,23 @@ class ApiClient
     }
 
 
+    /**
+     * Get Status of the shop
+     * @return string json datas
+     */
+    public function getStatusShop()
+    {
+        $request = $this->buildApiRequest('get-data', 'shop');
+        return $this->requestApi($request);
+    }
+
+
+
+
+
+
+
+
 
 
     /**
@@ -188,15 +212,7 @@ class ApiClient
         return $this->requestApi('get-datas', array('pid' => $pid));
     }
 
-    /**
-    * Get Status of the shop
-    * @return string json datas
-    */
-    public function getStatusShop()
-    {
-        $request = $this->buildApiRequest('get-data', 'shop');
-        return $this->requestApi($request);
-    }
+
 
     /**
     * Refund an order
