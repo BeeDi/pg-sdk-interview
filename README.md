@@ -64,15 +64,6 @@ Il faut modifier le contrat décrit dans la documentation, sinon quel est son in
 
 
 
-
-
-
-
-
-
-
-
-
 ## SECONDE ETAPE : TA PROPOSITION D'AMÉLIORATION
 
 Après ton analyse personnelle, à toi de nous montrer comment tu aurais codé ce SDK. Fais-nous une proposition, montre-nous comment tu codes ! Aucune règle imposée, on ne limite pas le nombre de fichiers ou le nombre de fonctions : on veut simplement un SDK facile à utiliser pour tous nos confrères dev.
@@ -86,3 +77,35 @@ Voici des élément de connexion API:
 
 Enjoy ;)
 
+### Remarques
+
+Concernant la construction du Client API, initialement implémenté comme un Singleton. 
+Le fait d'avoir des paramètres de configuration rend difficile à comprendre l'usage de la méthode `getInstance`. 
+Car seul les premiers paramètres de configuration seront utilisés. 
+Donc comme je ne voyais pas forcément l'intérêt de forcer un Singleton (et que je ne vois pas d'autres SDK faire de même), j'ai préféré supprimer entièrement l'usage du pattern.
+A la place, j'ai opté pour une solution où on fournit une configuration après la création de l'objet. 
+Le constructeur inclut l'injection possible d'une instance implémentant l'interface IHttpClient.
+L'usage est illustré dans des tests, ce qui sert également de documentation pour les développeurs tiers.
+
+J'utilise des Exceptions pour signaler un comportement non souhaitable et indiquer à l'utilisateur du code le bon usage. 
+En particulier, dans certains constructeurs (`ApiConfiguration` ou `ApiClient`).
+
+J'ai essayé de séparer les aspects métiers (ou ce qui relève des conventions propres à Paygreen) dans le namespace `Paygreen\SDK\`.
+Par exemple, la liste des endpoints disponibles, la configuration du Client (identifiant, clé privé, url du serveur) et la classe ayant pour responsabilité de construire les requêtes.  
+Le namespace `Paygreen\SDK\Http` permet d'encapsuler dans des classes certains aspects plus techniques des requêtes :   
+- la liste des verbes HTTP
+- deux implémentations d'un client HTTP 
+- les paramètres de la requête HTTP 
+
+Une étape supplémentaire, aurait été de séparer les appels aux actions métiers (créer un payin, le confirmer, faire un refund, etc.) dans des classes à part. 
+Avec par exemple, une classe _ApiPayin_ et des méthodes de type ; _createCash_, _get_, etc.
+Un autre élémént qui peut être intéressant pour faciliter l'usage sont l'encapsulation des réponses, qui permet de faciliter la compréhension des codes de retours de l'API, la gestion des erreurs, etc.  
+
+Concernant les options commentées dans le client CURL (`CURLOPT_SSL_VERIFYPEER`), on pourrait imaginer utiliser les variables d'environnement (ou un autre mécanisme) pour les configurer.
+
+J'ai modifié le nom ou choisi des noms qui me semblait plus explicite, ou plus coller avec la documentation.
+Le _type hinting_ et les annotations PHPDoc permettent également de clarifier l'usage du code.  
+J'ai utilisé des inspections phpcs et phpcbf pour respecter les PSR de syntaxe.
+
+Voilà, j'espère que vous aurez plaisir à lire ce que j'ai écrit (code et texte). 
+Benjamin

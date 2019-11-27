@@ -11,9 +11,9 @@ $api->addConfiguration(new ApiConfiguration(
     '095d-4211-96bd-987cb9f4a695',
     'https://preprod.paygreen.fr'
 ));
-//$api->checkConfiguration();
-//$api->getStatusShop();
-//$api->getAccountData();
+$api->checkConfiguration();
+$api->getStatusShop();
+$api->getAccountData();
 $cashCreation = $api->createCashPayin(array(
     'content' =>
         array(

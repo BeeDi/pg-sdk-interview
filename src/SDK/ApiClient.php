@@ -20,7 +20,7 @@ class ApiClient
      */
     protected $_requestFactory;
 
-    public function __construct($httpClient = null)
+    public function __construct(IHttpClient $httpClient = null)
     {
         if (isset($httpClient)) {
             $this->_httpClient = $httpClient;
@@ -90,6 +90,12 @@ class ApiClient
         return $res;
     }
 
+    /**
+     * @param string $endpointKey
+     * @param string $endpointValue
+     * @param array|null $content
+     * @return object
+     */
     private function getObjectOrError(string $endpointKey, string $endpointValue = '', array $content = null)
     {
         $object = $this->createRequestAndCallAPI($endpointKey, $endpointValue, $content);
@@ -98,8 +104,6 @@ class ApiClient
             ? $object->error
             : $object;
     }
-
-
 
 
     /**
@@ -205,20 +209,28 @@ class ApiClient
     }
 
     /**
-     * Get rounding informations for $paiementToken
+     * Get rounding information for $paymentToken
      * @param $data
-     * @return string json data
+     * @return object
      */
     public function getRoundingInfo($data)
     {
         return $this->getObjectOrError(ApiEndpoint::SOLIDARITY_GET, $data['paymentToken']);
     }
 
+    /**
+     * @param $data
+     * @return object
+     */
     public function validateRounding($data)
     {
         return $this->getObjectOrError(ApiEndpoint::SOLIDARITY_VALIDATE, $data['paymentToken']);
     }
 
+    /**
+     * @param $data
+     * @return object
+     */
     public function refundRounding($data)
     {
         $content = array('paymentToken' => $data['paymentToken']);
@@ -282,11 +294,10 @@ class ApiClient
      *
      * @param string $email email of account paygreen
      * @param string $name name of shop
-     * @param string $phone phone number, can be null
      * @param null $ipAddress
      * @return string json data
      */
-    public function getOAuthServerAccess($email, $name, $phone = null, $ipAddress = null)
+    public function getOAuthServerAccess($email, $name, $ipAddress = null)
     {
         if (!isset($ipAddress)) {
             $ipAddress = $_SERVER['ADDR'];
