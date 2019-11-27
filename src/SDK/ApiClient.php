@@ -2,26 +2,142 @@
 
 namespace Paygreen\SDK;
 
+use Exception;
+use InvalidArgumentException;
+use Paygreen\SDK\Http\HttpApiRequest;
+use Paygreen\SDK\Http\HttpClientCurl;
+use Paygreen\SDK\Http\HttpClientStream;
+use Paygreen\SDK\Http\HttpVerb;
 use Paygreen\SDK\ApiConfiguration;
 
 class ApiClient
 {
-    public $configuration;
+    private $configuration;
+    private $httpClient;
 
     public function __construct()
     {
+        if (extension_loaded('curl')) {
+            $this->httpClient = new HttpClientCurl();
+        } elseif (ini_get('allow_url_fopen')) {
+            $this->httpClient = new HttpClientStream();
+        } else {
+            throw new Exception("Invalid configuration. Either add curl PHP extension or enable allow_url_fopen in php.ini");
+        }
+    }
+
+    public function addConfiguration(ApiConfiguration $configuration): void
+    {
+        $this->configuration = $configuration;
+    }
+
+    public function getConfiguration(): ApiConfiguration
+    {
+        return $this->configuration;
+    }
+
+    private static $methodDictionary = array(
+        'create-cash' => array(HttpVerb::POST, '/payins/transaction/cash'),
+        'get-data' => array(HttpVerb::GET, '/%s')
+    );
+
+    /**
+     * @param string $endpointKey
+     * @return HttpVerb
+     */
+    private function getEndpointVerb(string $endpointKey): string
+    {
+        if (!isset(ApiClient::$methodDictionary[$endpointKey])) {
+            throw new InvalidArgumentException("Unknown HttpRequest key: " . $endpointKey);
+        }
+
+        return ApiClient::$methodDictionary[$endpointKey][0];
     }
 
     /**
-    * Authentication to server paygreen
-    *
-    * @param string $email email of account paygreen
-    * @param string $name name of shop
-    * @param string $phone phone number, can be null
-    * @param string $ipAdress ip Adress current, if null autodetect
-    * @return string json datas
-    *
-    */
+     * @param string $endpointKey
+     * @return string
+     */
+    private function getEndpointFormat(string $endpointKey): string
+    {
+        if (!isset(ApiClient::$methodDictionary[$endpointKey])) {
+            throw new InvalidArgumentException("Unknown HttpRequest key: " . $endpointKey);
+        }
+
+        return ApiClient::$methodDictionary[$endpointKey][1];
+    }
+
+    /**
+     * @param string $endpointKey
+     * @param string $endpointValue
+     * @param array|null $content
+     * @return HttpApiRequest
+     */
+    private function buildApiRequest(string $endpointKey, string $endpointValue = '', array $content = null): HttpApiRequest
+    {
+        if (!isset(ApiClient::$methodDictionary[$endpointKey])) {
+            throw new InvalidArgumentException("Unknown HttpRequest key");
+        }
+
+        $req = new HttpApiRequest(
+            $this->getConfiguration()->getPrivateKey(),
+            $this->getEndpointVerb($endpointKey),
+            $this->buildUrl($this->getConfiguration(), $this->getEndpointFormat($endpointKey), $endpointValue)
+        );
+
+        if (isset($content)) {
+            $req->addContent($content);
+        }
+
+        return $req;
+    }
+
+    /**
+     * @param \Paygreen\SDK\ApiConfiguration $configuration
+     * @param string $endpoint
+     * @param string $value (optional)
+     * @return string
+     */
+    private function buildUrl(ApiConfiguration $configuration, string $endpoint, string $value = ''): string
+    {
+        $baseUrl = $configuration->getApiServerUrl() . '/' . $configuration->getUniqueIdentifier();
+        if (isset($value)) {
+            return $baseUrl . sprintf($endpoint, $value);
+        } else {
+            return $baseUrl . $endpoint;
+        }
+    }
+
+
+    /**
+     * Return method and url by function name
+     *
+     * @param $request
+     * @return object page
+     */
+    private function requestApi($request)
+    {
+        $page = $this->httpClient->callRequest($request);
+
+        if ($page === false) {
+            return ((object)array('error' => 1));
+        }
+
+        return json_decode($page);
+    }
+
+
+
+
+    /**
+     * Authentication to server paygreen
+     *
+     * @param string $email email of account paygreen
+     * @param string $name name of shop
+     * @param string $phone phone number, can be null
+     * @param null $ipAddress
+     * @return string json datas
+     */
     public function getOAuthServerAccess($email, $name, $phone = null, $ipAddress = null)
     {
         if (!isset($ipAddress)) {
@@ -42,9 +158,9 @@ class ApiClient
     * return url of Authorization
     * @return string url of Authorization
     */
-    public function getOAuthAutorizeEndpoint()
+    public function getOAuthAuthorizeEndpoint()
     {
-        return $this->configuration->getApiServerUrl().'/auth/authorize';
+        return $this->getConfiguration()->getApiServerUrl().'/auth/authorize';
     }
 
     /**
@@ -54,7 +170,7 @@ class ApiClient
     */
     public function getOAuthTokenEndpoint()
     {
-        return $this->configuration->getApiServerUrl().'/auth/access_token';
+        return $this->getConfiguration()->getApiServerUrl().'/auth/access_token';
     }
 
     /**
@@ -64,7 +180,7 @@ class ApiClient
     */
     private function getOAuthDeclareEndpoint()
     {
-        return $this->configuration->getApiServerUrl().'/auth';
+        return $this->getConfiguration()->getApiServerUrl().'/auth';
     }
 
     public function getTransactionInfo($pid)
@@ -78,7 +194,8 @@ class ApiClient
     */
     public function getStatusShop()
     {
-        return $this->requestApi('get-data', array('type'=>'shop'));
+        $request = $this->buildApiRequest('get-data', 'shop');
+        return $this->requestApi($request);
     }
 
     /**
@@ -199,12 +316,10 @@ class ApiClient
     }
 
     /**
-    * Get rounding informations for $paiementToken
-    * @param string $UI unique id
-    * @param string $CP private key
-    * @param string $paiementToken paiementToken
-    * @return string json datas
-    */
+     * Get rounding informations for $paiementToken
+     * @param $datas
+     * @return string json datas
+     */
     public function getRoundingInfo($datas)
     {
         $transaction = $this->requestApi('get-rounding', $datas);
@@ -273,82 +388,15 @@ class ApiClient
         return false;
     }
 
-    /**
-    * Return method and url by function name
-    *
-    * @param string $function
-    * @param array $datas
-    * @return object page
-    */
-    private function requestApi($function, $datas = null)
-    {
-        $http           = "Authorization: Bearer ".$this->configuration->getPrivateKey();
 
-        $lowerName      = strtolower($function);
-        $function_name  = str_replace('-', '_', $lowerName);
-        $datas_request  = $this->$function_name($datas, $http);
-        $content        = '';
-        if (isset($datas['content'])) {
-            $content = json_encode($datas['content']);
-        }
-        if (extension_loaded('curl')) {
-            $page = $this->request_api_curl($datas_request, $content);
-        } elseif (ini_get('allow_url_fopen')) {
-            $page = $this->request_api_fopen($datas_request, $content);
-        } else {
-            return ((object)array('error' => 0));
-        }
-        if ($page === false) {
-            return ((object)array('error' => 1));
-        }
-        return json_decode($page);
-    }
-
-    private function request_api_curl($datas_request, $content)
-    {
-        $ch = curl_init();
-        curl_setopt_array($ch, array(
-            // CURLOPT_SSL_VERIFYPEER => false,
-            // CURLOPT_SSL_VERIFYHOST => false,
-            CURLOPT_URL => $datas_request['url'],
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_ENCODING => "",
-            CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_CUSTOMREQUEST => $datas_request['method'],
-            CURLOPT_POSTFIELDS => $content,
-            CURLOPT_HTTPHEADER => array(
-                "accept: application/json",
-                $datas_request['http'],
-                "cache-control: no-cache",
-                "content-type: application/json",
-                ),
-        ));
-        $page = curl_exec($ch);
-        curl_close($ch);
-        return ($page);
-    }
-
-    private function request_api_fopen($datas_request, $content)
-    {
-        $opts = array(
-            'http' => array(
-                'method'    =>  $datas_request['method'],
-                'header'    =>  "Accept: application/json\r\n" .
-                "Content-Type: application/json\r\n".
-                $datas_request['http'],
-                'content'   =>  $content
-            )
-        );
-        $context = stream_context_create($opts);
-        $page = @file_get_contents($datas_request['url'], false, $context);
-        return ($page);
-    }
 
     /************************************************************
-                Private functions called by requestApi
-    ************************************************************/
+     * Private functions called by requestApi
+     ***********************************************************
+     * @param $datas
+     * @param $http
+     * @return array
+     */
     private function oauth_access($datas, $http)
     {
         return ($data = array(

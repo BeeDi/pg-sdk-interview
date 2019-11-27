@@ -10,6 +10,12 @@ class ApiConfiguration
     private $privateKey = '';
     private $apiServerUrl = 'https://paygreen.fr/api';
 
+    /**
+     * ApiConfiguration constructor.
+     * @param $uniqueIdentifier
+     * @param $privateKey
+     * @param string $apiHost (optional)
+     */
     public function __construct($uniqueIdentifier, $privateKey, $apiHost = '')
     {
         $this->setApiServerUrl($apiHost);
@@ -17,7 +23,10 @@ class ApiConfiguration
         $this->setPrivateKey($privateKey);
     }
 
-    public function getUniqueIdentifier()
+    /**
+     * @return string
+     */
+    public function getUniqueIdentifier(): string
     {
         $stripedUniqueIdentifier = $this->uniqueIdentifier;
         if (substr($this->uniqueIdentifier, 0, 2) == 'PP') {
@@ -26,24 +35,30 @@ class ApiConfiguration
         return $stripedUniqueIdentifier;
     }
 
-    public function getApiServerUrl()
+    /**
+     * @return string
+     */
+    public function getApiServerUrl(): string
     {
         return $this->apiServerUrl;
     }
 
-    public function getPrivateKey()
+    /**
+     * @return string
+     */
+    public function getPrivateKey(): string
     {
         return $this->privateKey;
     }
 
-    private function setApiServerUrl($apiHost)
+    private function setApiServerUrl($apiHost): void
     {
         if (!empty($apiHost)) {
             $this->apiServerUrl = $apiHost . '/api';
         }
     }
 
-    private function setUniqueIdentifier($uniqueIdentifier)
+    private function setUniqueIdentifier($uniqueIdentifier): void
     {
         if (empty($uniqueIdentifier)) {
             throw new InvalidArgumentException("Missing UniqueIdentifier");
@@ -52,7 +67,7 @@ class ApiConfiguration
         $this->uniqueIdentifier = $uniqueIdentifier;
     }
 
-    private function setPrivateKey($privateKey)
+    private function setPrivateKey($privateKey): void
     {
         if (empty($privateKey)) {
             throw new InvalidArgumentException("Missing PrivateKey");
