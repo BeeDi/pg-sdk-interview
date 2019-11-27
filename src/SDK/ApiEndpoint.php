@@ -19,7 +19,7 @@ class ApiEndpoint
     const PAYIN_TOKEN = 'create-tokenize' ;
     const PAYIN_XTIME = 'create-xtime' ;
     const PAYIN_DETAILS = 'payin-details';
-    const PAYIN_DELIVERY = 'delivery' ;
+    const PAYIN_CONFIRM = 'delivery' ;
     const PAYIN_REFUND = 'refund' ;
     const SOLIDARITY_GET = 'get-rounding' ;
     const SOLIDARITY_VALIDATE = 'validate-rounding' ;
@@ -38,7 +38,7 @@ class ApiEndpoint
         ApiEndpoint::PAYIN_TOKEN => array(HttpVerb::POST, '/payins/transaction/tokenize'),
         ApiEndpoint::PAYIN_XTIME => array(HttpVerb::POST, '/payins/transaction/xTime'),
         ApiEndpoint::PAYIN_DETAILS => array(HttpVerb::GET, '/payins/transaction/%s'),
-        ApiEndpoint::PAYIN_DELIVERY => array(HttpVerb::PUT, '/payins/transaction/%s'),
+        ApiEndpoint::PAYIN_CONFIRM => array(HttpVerb::PUT, '/payins/transaction/%s'),
         ApiEndpoint::PAYIN_REFUND => array(HttpVerb::DELETE, '/payins/transaction/%s'),
         ApiEndpoint::SOLIDARITY_GET => array(HttpVerb::GET, '/solidarity/%s'),
         ApiEndpoint::SOLIDARITY_VALIDATE => array(HttpVerb::PATCH, '/solidarity/%s'),

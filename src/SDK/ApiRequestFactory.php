@@ -1,13 +1,15 @@
 <?php
 
-namespace Paygreen\SDK\Http;
+namespace Paygreen\SDK;
 
 use InvalidArgumentException;
-use Paygreen\SDK\ApiConfiguration;
-use Paygreen\SDK\ApiEndpoint;
+use Paygreen\SDK\Http\HttpApiRequest;
 
 class ApiRequestFactory
 {
+    /**
+     * @var ApiConfiguration
+     */
     private $configuration;
 
     public function __construct(ApiConfiguration $configuration)
@@ -17,7 +19,6 @@ class ApiRequestFactory
         }
         $this->configuration = $configuration;
     }
-
 
     /**
      * @param ApiConfiguration $configuration

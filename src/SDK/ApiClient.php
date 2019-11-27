@@ -3,15 +3,22 @@
 namespace Paygreen\SDK;
 
 use Exception;
-use Paygreen\SDK\Http\ApiRequestFactory;
+use LogicException;
 use Paygreen\SDK\Http\HttpApiRequest;
 use Paygreen\SDK\Http\HttpClientCurl;
 use Paygreen\SDK\Http\HttpClientStream;
+use Paygreen\SDK\Http\IHttpClient;
 
 class ApiClient
 {
-    private $_httpClient;
-    private $_requestFactory;
+    /**
+     * @var IHttpClient
+     */
+    protected $_httpClient;
+    /**
+     * @var ApiRequestFactory
+     */
+    protected $_requestFactory;
 
     public function __construct($httpClient = null)
     {
@@ -22,7 +29,7 @@ class ApiClient
         } elseif (ini_get('allow_url_fopen')) {
             $this->_httpClient = new HttpClientStream();
         } else {
-            throw new Exception("Invalid configuration. Either add curl PHP extension or enable allow_url_fopen in php.ini");
+            throw new Exception("Invalid setup. Either add curl PHP extension or enable allow_url_fopen in php.ini");
         }
     }
 
@@ -33,7 +40,23 @@ class ApiClient
 
     private function requestFactory(): ApiRequestFactory
     {
+        if (!isset($this->_requestFactory)) {
+            throw new LogicException("Missing API configuration");
+        }
         return $this->_requestFactory;
+    }
+
+    /**
+     * @param string $endpointKey
+     * @param string $endpointValue
+     * @param array|null $content
+     * @return HttpApiRequest
+     */
+    protected function createRequest(string $endpointKey, string $endpointValue = '', array $content = null): HttpApiRequest
+    {
+        $req = $this->requestFactory()->create($endpointKey, $endpointValue, $content);
+
+        return $req;
     }
 
     /**
@@ -42,7 +65,7 @@ class ApiClient
      * @param $request
      * @return object page
      */
-    private function requestApi($request)
+    protected function callAPI($request)
     {
         $page = $this->_httpClient->callRequest($request);
 
@@ -54,23 +77,205 @@ class ApiClient
     }
 
     /**
-     * Get Status of the shop
-     * @return string json datas
+     * @param string $endpointKey
+     * @param string $endpointValue
+     * @param array|null $content
+     * @return object
      */
-    public function getStatusShop()
+    protected function createRequestAndCallAPI(string $endpointKey, string $endpointValue = '', array $content = null)
     {
-        $request = $this->requestFactory()->create(ApiEndpoint::GET_OBJECT, 'shop');
-        return $this->requestApi($request);
+        $req = $this->createRequest($endpointKey, $endpointValue, $content);
+        $res = $this->callAPI($req);
+
+        return $res;
+    }
+
+    private function getObjectOrError(string $endpointKey, string $endpointValue = '', array $content = null)
+    {
+        $object = $this->createRequestAndCallAPI($endpointKey, $endpointValue, $content);
+
+        return isset($object->error)
+            ? $object->error
+            : $object;
     }
 
 
 
 
+    /**
+     * To check if private Key and Unique Id are valid
+     * @return string json answer of false if activate != {0,1}
+     */
+    public function checkConfiguration()
+    {
+        $valid = $this->createRequestAndCallAPI(ApiEndpoint::CHECK_ID);
+
+        if ($valid != false) {
+            if (isset($valid->error)) {
+                return $valid;
+            }
+            if ($valid->success == 0) {
+                return false;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Get Status of the shop
+     * @return string json
+     */
+    public function getStatusShop()
+    {
+        return $this->createRequestAndCallAPI(ApiEndpoint::GET_OBJECT, 'shop');
+    }
+
+    /**
+     * To validate the shop
+     *
+     * @param int $activate 1 or 0 to active the account
+     * @return string json answer of false if activate != {0,1}
+     */
+    public function validateShop($activate)
+    {
+        if ($activate != 1 && $activate != 0) {
+            return false;
+        }
+        $content = array('activate' => $activate);
+
+        return $this->createRequestAndCallAPI(ApiEndpoint::SHOP_VALIDATE, '', $content);
+    }
 
 
+    public function getPayinDetails($pid)
+    {
+        return $this->createRequestAndCallAPI(ApiEndpoint::PAYIN_DETAILS, $pid);
+    }
+
+    public function createCarbonPayin($data)
+    {
+        return $this->createRequestAndCallAPI(ApiEndpoint::PAYIN_CARBON, '', $data['content']);
+    }
+
+    public function createCashPayin($data)
+    {
+        return $this->createRequestAndCallAPI(ApiEndpoint::PAYIN_CASH, '', $data['content']);
+    }
+
+    public function createXTimePayin($data)
+    {
+        return $this->createRequestAndCallAPI(ApiEndpoint::PAYIN_XTIME, '', $data['content']);
+    }
+
+    public function createSubscriptionPayin($data)
+    {
+        return $this->createRequestAndCallAPI(ApiEndpoint::PAYIN_SUBSCRIPTION, '', $data['content']);
+    }
+
+    public function createTokenizePayin($data)
+    {
+        return $this->createRequestAndCallAPI(ApiEndpoint::PAYIN_TOKEN, '', $data['content']);
+    }
+
+    public function confirmPayin($pid)
+    {
+        return $this->createRequestAndCallAPI(ApiEndpoint::PAYIN_CONFIRM, $pid);
+    }
+
+    /**
+     * Refund an order
+     *
+     * @param int $pid paygreen id of transaction
+     * @param float $amount amount of refund
+     * @return string json answer
+     */
+    public function refundPayin($pid, $amount = null)
+    {
+        if (empty($pid)) {
+            return false;
+        }
+
+        $req = $this->createRequest(ApiEndpoint::PAYIN_REFUND, $pid);
+        if ($amount != null) {
+            $req->addContent(array('amount' => $amount * 100));
+        }
+
+        return $this->callAPI($req);
+    }
+
+    /**
+     * Get rounding informations for $paiementToken
+     * @param $data
+     * @return string json data
+     */
+    public function getRoundingInfo($data)
+    {
+        return $this->getObjectOrError(ApiEndpoint::SOLIDARITY_GET, $data['paymentToken']);
+    }
+
+    public function validateRounding($data)
+    {
+        return $this->getObjectOrError(ApiEndpoint::SOLIDARITY_VALIDATE, $data['paymentToken']);
+    }
+
+    public function refundRounding($data)
+    {
+        $content = array('paymentToken' => $data['paymentToken']);
+
+        return $this->getObjectOrError(ApiEndpoint::SOLIDARITY_REFUND, $data['paymentToken'], $content);
+    }
 
 
+    /**
+    * Get shop information
+    * @return array|string
+    */
+    public function getAccountData()
+    {
+        $account = $this->createRequestAndCallAPI(ApiEndpoint::GET_OBJECT, 'account');
+        if ($account == false || isset($account->error)) {
+            return $account;
+        }
 
+        $bank  = $this->createRequestAndCallAPI(ApiEndpoint::GET_OBJECT, 'bank');
+        if ($bank == false || isset($bank->error)) {
+            return $bank;
+        }
+
+        $shop = $this->createRequestAndCallAPI(ApiEndpoint::GET_OBJECT, 'shop');
+        if ($shop == false || isset($shop->error)) {
+            return $shop;
+        }
+
+        return $this->buildAccountData($account, $bank, $shop);
+    }
+
+    private function buildAccountData($account, $bank, $shop)
+    {
+        $accountData = array();
+        $accountData['siret'] = $account->data->siret;
+
+        foreach ($bank->data as $rib) {
+            if ($rib->isDefault == "1") {
+                $accountData['IBAN']  = $rib->iban;
+            }
+        }
+
+        $accountData['url'] = $shop->data->url;
+        $accountData['modules'] = $shop->data->modules;
+        $accountData['solidarityType'] = $shop->data->extra->solidarityType;
+        if (isset($shop->data->businessIdentifier)) {
+            $accountData['siret'] = $shop->data->businessIdentifier;
+        }
+        $accountData['valide'] = true;
+
+        if (empty($accountData['url']) && empty($accountData['siret']) && empty($accountData['IBAN'])) {
+            $accountData['valide'] = false;
+        }
+
+        return $accountData;
+    }
 
     /**
      * Authentication to server paygreen
@@ -79,7 +284,7 @@ class ApiClient
      * @param string $name name of shop
      * @param string $phone phone number, can be null
      * @param null $ipAddress
-     * @return string json datas
+     * @return string json data
      */
     public function getOAuthServerAccess($email, $name, $phone = null, $ipAddress = null)
     {
@@ -95,222 +300,26 @@ class ApiClient
         $req = $this->requestFactory()->create(ApiEndpoint::OAUTH_ACCESS);
         $req->addContent($content);
 
-        return $this->requestApi($req);
+        return $this->callAPI($req);
     }
 
     /**
-    * 3
-    * return url of Authorization
-    * @return string url of Authorization
-    */
+     * 3
+     * return url of Authorization
+     * @return string url of Authorization
+     */
     public function getOAuthAuthorizeEndpoint()
     {
         return ApiEndpoint::getEndpointFormat(ApiEndpoint::OAUTH_AUTHORIZE);
     }
 
     /**
-    * 4
-    * return url of auth token
-    * @return string url of Authentication
-    */
+     * 4
+     * return url of auth token
+     * @return string url of Authentication
+     */
     public function getOAuthTokenEndpoint()
     {
         return ApiEndpoint::getEndpointFormat(ApiEndpoint::OAUTH_TOKEN);
     }
-
-    public function getTransactionInfo($pid)
-    {
-        return $this->requestApi('get-datas', array('pid' => $pid));
-    }
-
-    /**
-    * Refund an order
-    *
-    * @param int $pid paygreen id of transaction
-    * @param float $amount amount of refund
-    * @return string json answer
-    */
-    public function refundOrder($pid, $amount)
-    {
-        if (empty($pid)) {
-            return false;
-        }
-
-        $datas = array('pid' => $pid);
-        if ($amount != null) {
-            $datas['content'] = array('amount' => $amount * 100);
-        }
-
-        return $this->requestApi('refund', $datas);
-    }
-
-    public function sendFingerprintDatas($data)
-    {
-        $datas['content'] = $data;
-        return $this->requestApi('send-ccarbone', $datas);
-    }
-
-    /**
-    * To validate the shop
-    *
-    * @param int $activate 1 or 0 to active the account
-    * @return string json answer of false if activate != {0,1}
-    */
-    public function validateShop($activate)
-    {
-        if ($activate != 1 && $activate != 0) {
-            return false;
-        }
-        $datas['content'] = array('activate' => $activate);
-        return $this->requestApi('validate-shop', $datas);
-    }
-
-    /**
-    * To check if private Key and Unique Id are valids
-    *
-    * @return string json answer of false if activate != {0,1}
-    */
-    public function validIdShop()
-    {
-        $valid = $this->requestApi('are-valid-ids', null);
-
-        if ($valid != false) {
-            if (isset($valid->error)) {
-                return $valid;
-            }
-            if ($valid->success == 0) {
-                return false;
-            }
-            return true;
-        }
-        return false;
-    }
-
-    /**
-    * Get shop informations
-    * @return string json datas
-    */
-    public function getAccountInfos()
-    {
-        $infosAccount = array();
-
-        $account = $this->requestApi('get-data', array('type'=>'account'));
-        if ($this->isContainsError($account)) {
-            return $account->error;
-        }
-        if ($account == false) {
-            return false;
-        }
-        $infosAccount['siret'] = $account->data->siret;
-
-        $bank  = $this->requestApi('get-data', array('type' => 'bank'));
-        if ($this->isContainsError($bank)) {
-            return $bank->error;
-        }
-        if ($bank == false) {
-            return false;
-        }
-
-        foreach ($bank->data as $rib) {
-            if ($rib->isDefault == "1") {
-                $infosAccount['IBAN']  = $rib->iban;
-            }
-        }
-
-        $shop = $this->requestApi('get-data', array('type'=> 'shop'));
-        if ($this->isContainsError($bank)) {
-            return $shop->error;
-        }
-        if ($shop == false) {
-            return false;
-        }
-        $infosAccount['url'] = $shop->data->url;
-        $infosAccount['modules'] = $shop->data->modules;
-        $infosAccount['solidarityType'] = $shop->data->extra->solidarityType;
-
-        if (isset($shop->data->businessIdentifier)) {
-            $infosAccount['siret'] = $shop->data->businessIdentifier;
-        }
-
-        $infosAccount['valide'] = true;
-
-        if (empty($infosAccount['url']) && empty($infosAccount['siret']) && empty($infosAccount['IBAN'])) {
-            $infosAccount['valide'] = false;
-        }
-        return $infosAccount;
-    }
-
-    /**
-     * Get rounding informations for $paiementToken
-     * @param $datas
-     * @return string json datas
-     */
-    public function getRoundingInfo($datas)
-    {
-        $transaction = $this->requestApi('get-rounding', $datas);
-        if ($this->isContainsError($transaction)) {
-            return $transaction->error;
-        }
-        return $transaction;
-    }
-
-    public function validateRounding($datas)
-    {
-        $validate = $this->requestApi('validate-rounding', $datas);
-        if ($this->isContainsError($validate)) {
-            return $validate->error;
-        }
-        return $validate;
-    }
-
-    public function refundRounding($datas)
-    {
-        $datas['content'] = array('paymentToken' => $datas['paymentToken']);
-        $refund = $this->requestApi('refund-rounding', $datas);
-        if ($this->isContainsError($refund)) {
-            return $refund->error;
-        }
-        return $refund;
-    }
-
-    public function validDeliveryPayment($pid)
-    {
-        return $this->requestApi('delivery', array('pid' => $pid));
-    }
-
-    public function createCash($data)
-    {
-        return $this->requestApi('create-cash', $data);
-    }
-
-    public function createXTime($data)
-    {
-        return $this->requestApi('create-xtime', $data);
-    }
-
-    public function createSubscription($data)
-    {
-        return $this->requestApi('create-subscription', $data);
-    }
-
-    public function createTokenize($data)
-    {
-        return $this->requestApi('create-tokenize', $data);
-    }
-
-
-
-    /**
-    * Check if error is defined in object
-    * @param object $var
-    * @return boolean
-    */
-    private function isContainsError($var)
-    {
-        if (isset($var->error)) {
-            return true;
-        }
-        return false;
-    }
-
 }

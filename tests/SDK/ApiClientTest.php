@@ -6,9 +6,7 @@ use LogicException;
 use Paygreen\SDK\ApiClient;
 use Paygreen\SDK\ApiConfiguration;
 use Paygreen\SDK\Http\HttpClientCurl;
-use Paygreen\SDK\Http\IHttpClient;
 use PHPUnit\Framework\TestCase;
-use Paygreen\Tests\SDK;
 
 class ApiClientTest extends TestCase
 {
